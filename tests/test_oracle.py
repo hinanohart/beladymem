@@ -8,9 +8,28 @@ from beladymem.oracle import (
     BeladyPolicy,
     belady_min,
     belady_min_hits_bruteforce,
+    replay,
 )
 from beladymem.policies import FIFO, LFU, LRU
 from beladymem.synth import cyclic_thrash, from_use_sequence
+
+
+class _BadVictimPolicy:
+    """A bring-your-own policy that returns an invalid victim."""
+
+    name = "bad"
+
+    def __init__(self, victim):
+        self._victim = victim
+
+    def reset(self):
+        pass
+
+    def on_use(self, i, item, useful):
+        pass
+
+    def evict_victim(self, i, cache):
+        return self._victim
 
 
 def _rand_trace(rng, max_items=6, max_len=40):
@@ -91,3 +110,12 @@ def test_replay_runs_in_both_budget_modes(budget_mode):
     tr = from_use_sequence(["a", "b", "a", "c", "a", "b"])
     out = belady_min(tr, 2, budget_mode=budget_mode)
     assert 0 <= out["useful_hits"] <= out["total_useful"]
+
+
+@pytest.mark.parametrize("bad_victim", [None, "ghost"])
+def test_invalid_victim_fails_closed(bad_victim):
+    # An invalid victim would let the cache exceed the budget and produce a
+    # competitive ratio > 1; replay must refuse rather than report a wrong number.
+    tr = from_use_sequence(["a", "b", "c", "d", "a", "b"])
+    with pytest.raises(ValueError):
+        replay(tr, 2, _BadVictimPolicy(bad_victim))

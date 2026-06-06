@@ -8,13 +8,15 @@ light (numpy), synthetic-validated.
 > [Validation](#validation) and [What beladymem does not claim](#what-beladymem-does-not-claim).
 
 beladymem is a **measurement instrument**, not a memory system. It takes a trace
-of *useful retrievals* from a long-term memory store (mem0 / Letta / a custom
-agent memory), treats it as a classical cache reference stream at a fixed budget
-`B`, and reports — for each eviction policy — one falsifiable number: how close
-that policy comes to the clairvoyant optimum.
+of *useful retrievals* from a long-term memory store — you supply the trace as
+JSON Lines (a LongMemEval adapter is included; you can write your own) — treats
+it as a classical cache reference stream at a fixed budget `B`, and reports — for
+each eviction policy — one falsifiable number: how close that policy comes to the
+clairvoyant optimum.
 
 ```
-competitive_ratio(policy) = useful_hits(policy) / useful_hits(Belady-MIN)   ∈ [0, 1]
+competitive_ratio(policy) = useful_hits(policy) / useful_hits(Belady-MIN)
+                          ∈ [0, 1]   (exact-key identity, count budget)
 ```
 
 ## The model (why the ratio is in `[0, 1]`)
@@ -31,7 +33,10 @@ traces.
 
 `WRITE` events are recorded for adapter fidelity but the canonical oracle is
 defined on the useful-retrieval references. Under **semantic** (fuzzy) matching
-or a **byte** budget, Belady MIN is a documented *lower bound*, not the optimum.
+or a **byte** budget, Belady MIN is a documented *lower bound*, not the optimum
+(the byte-budget number is a heuristic floor, not a PFOO-certified bound); a
+policy can then exceed it, so those modes are labelled `lower_bound` and their
+ratio must not be read as a competitive ratio in `[0, 1]`.
 
 ## Why a competitive ratio and not regret
 
@@ -46,8 +51,10 @@ These are not the same yardstick, and they do not always agree. Gate **G9**
 constructs a trace family on which the Belady competitive ratio ranks `LRU`
 above `LFU` while best-fixed-policy regret ranks `LFU` above `LRU`, with
 non-overlapping bootstrap confidence intervals — a reproducible demonstration
-that the competitive ratio carries information that regret does not. Run it
-yourself with `beladymem gate`.
+that the competitive ratio carries information that regret does not. The
+demonstration is a *constructed* family at specific budgets (a Simpson-style
+normalization effect, not a claim about every workload); it reproduces across
+seeds. Run it yourself with `beladymem gate`.
 
 ## Install
 
@@ -69,8 +76,14 @@ print(report.summary())
 ```
 
 Bring your own policy by implementing three hooks (`reset`, `on_use`,
-`evict_victim`) and pass the instance to `score`. Compare several at once with
-`beladymem.score.score_many`.
+`evict_victim`) and pass the instance to `score`. An invalid victim is rejected
+fail-closed so the `[0, 1]` guarantee cannot be broken silently. Compare several
+at once with `beladymem.score.score_many`.
+
+The instrument also exposes a prediction *envelope* as public functions in
+`beladymem.metrics`: `consistency_ratio` (a predictor fed the true future, which
+reproduces Belady) and `robustness_ratio` (a predictor fed adversarial
+predictions) bound what any prediction-driven evictor can achieve on a trace.
 
 ### CLI
 

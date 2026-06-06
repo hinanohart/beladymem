@@ -102,7 +102,14 @@ def replay(trace, budget: int, policy, budget_mode: str = "count") -> dict:
         while cache and _over(len(cache), cache_bytes, e.size, budget, budget_mode):
             victim = policy.evict_victim(i, cache)
             if victim is None or victim not in cache:
-                break
+                # Fail closed: an invalid victim would let the cache grow past the
+                # budget and silently produce a competitive ratio > 1. Refuse
+                # rather than report a wrong number.
+                raise ValueError(
+                    f"policy {getattr(policy, 'name', policy)!r} returned an "
+                    f"invalid eviction victim {victim!r}; the budget invariant "
+                    f"would be violated"
+                )
             cache_bytes -= cache[victim]
             del cache[victim]
             last_evict[victim] = i
