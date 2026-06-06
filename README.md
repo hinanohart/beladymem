@@ -135,6 +135,21 @@ item level), so it scores sessions-as-items, not the fact-level contents of a
 real store. beladymem is an offline diagnostic — Belady MIN is non-causal and
 cannot be used as a runtime policy.
 
+## Related
+
+Part of the hinanohart memory toolkit, at different layers:
+
+- [parsimony](https://github.com/hinanohart/parsimony) — a deterministic
+  *write/evict-time forgetting policy* (admission / eviction / dedup). parsimony
+  *decides* what to forget and self-benchmarks its **coverage** competitive ratio
+  with its own self-contained Belady oracle. beladymem is the complementary
+  *instrument*: it *measures* any forgetting policy's **useful-retrieval**
+  competitive ratio against Belady-MIN, and you can point it at parsimony (or
+  LRU / LFU / FIFO / your own) to compare. Different objective (coverage vs
+  useful-retrieval), no shared code.
+- [chronospect](https://github.com/hinanohart/chronospect) — in-weight memory
+  timescale measurement.
+
 ## License
 
 MIT © 2026 hinanohart
