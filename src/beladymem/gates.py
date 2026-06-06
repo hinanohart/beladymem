@@ -214,8 +214,8 @@ def g9_gc_differentiation() -> tuple[bool, str]:
     regret_favours_lfu = dh[2] < 0  # CI upper bound negative (LFU has more hits)
     ok = flip and ratio_favours_lru and regret_favours_lfu
     return ok, (
-        f"ratio LRU={mrl:.3f}>LFU={mrf:.3f} CIΔ[{dr[1]:.3f},{dr[2]:.3f}] | "
-        f"hits LFU={mhf:.0f}>LRU={mhl:.0f} CIΔ[{dh[1]:.0f},{dh[2]:.0f}] | flip={flip}"
+        f"ratio LRU={mrl:.3f}>LFU={mrf:.3f} CI_diff[{dr[1]:.3f},{dr[2]:.3f}] | "
+        f"hits LFU={mhf:.0f}>LRU={mhl:.0f} CI_diff[{dh[1]:.0f},{dh[2]:.0f}] | flip={flip}"
     )
 
 
