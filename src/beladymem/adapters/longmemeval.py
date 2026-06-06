@@ -2,8 +2,8 @@
 
 Honesty note (read this): LongMemEval ships **session-** and **turn-level** gold
 annotations, not item/fact-level ones. This adapter therefore builds a
-*session-as-item* (or turn-as-item) reference stream: each evidence session id
-is one cache item, and a question that depends on it is one useful retrieval.
+*session-as-item* reference stream: each evidence session id is one cache item,
+and a question that depends on it is one useful retrieval.
 That is enough to score eviction policies with **no LLM judge**, but it does NOT
 score the item-level contents of a real mem0/Letta store -- mapping a store's
 fact ids onto LongMemEval gold would need a heuristic or an LLM, which beladymem
@@ -29,9 +29,16 @@ def longmemeval_records_to_trace(records, granularity: str = "session") -> Memor
     """Convert a list of LongMemEval question records into a useful-USE trace.
 
     Each ``answer_session_ids`` entry becomes a useful retrieval of that session
-    item, in question order. ``granularity`` is recorded on each event's meta for
-    provenance; only ``"session"`` is supported without item-level gold.
+    item, in question order. Only ``granularity="session"`` is supported: without
+    item-level gold a turn-level stream would mislabel session items, so anything
+    else is rejected fail-closed rather than emitting a provenance lie.
     """
+    if granularity != "session":
+        raise ValueError(
+            f"granularity={granularity!r} is not supported; LongMemEval gold is "
+            "session/turn level and only session-as-item is implemented without "
+            "item-level gold. Pass granularity='session'."
+        )
     events: list[TraceEvent] = []
     t = 0
     for rec in records:

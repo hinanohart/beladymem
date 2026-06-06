@@ -114,6 +114,9 @@ def replay(trace, budget: int, policy, budget_mode: str = "count") -> dict:
             del cache[victim]
             last_evict[victim] = i
         if budget_mode == "count" and budget < 1:
+            # B=0: never admit. The eviction loop above has already drained the
+            # cache (it is provably empty here), so the cache stays empty and the
+            # ratio is a well-defined 0/0 -> nan (G8), never > 1.
             continue
         cache[e.item_id] = e.size
         cache_bytes += e.size

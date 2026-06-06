@@ -48,11 +48,13 @@ def test_no_hype_in_readme_and_source():
 
 
 def test_deterministic_core_has_no_randomness():
-    # The oracle and the point-estimate path must be deterministic. (Bootstrap
-    # CIs and robustness corruptions legitimately use a seeded RNG in metrics.py.)
-    oracle = (SRC / "oracle.py").read_text(encoding="utf-8")
-    assert "random" not in oracle
-    assert "np.random" not in oracle
+    # The oracle, the policies, and the point-estimate path must be deterministic.
+    # (Bootstrap CIs and robustness corruptions legitimately use a seeded RNG in
+    # metrics.py, which is therefore excluded.)
+    for name in ("oracle.py", "policies.py", "score.py"):
+        text = (SRC / name).read_text(encoding="utf-8")
+        assert "random" not in text, f"unexpected randomness in {name}"
+        assert "np.random" not in text, f"unexpected randomness in {name}"
 
 
 def test_src_text_io_declares_utf8():

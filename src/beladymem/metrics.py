@@ -109,7 +109,10 @@ def robustness_ratio(
 
 def cluster_bootstrap_ci(values, n_boot: int = 2000, alpha: float = 0.05, seed: int = 0):
     """Percentile bootstrap CI of the mean over independent trace-level values
-    (each trace = one cluster). NaNs are dropped (G8). Returns ``(mean, lo, hi)``.
+    (each trace = one cluster). Each cluster contributes a single scalar, so this
+    is an ordinary nonparametric bootstrap of the mean -- the "cluster" framing is
+    only to make the resampling unit (one whole trace) explicit; there is no
+    within-cluster resampling. NaNs are dropped (G8). Returns ``(mean, lo, hi)``.
     """
     vals = np.array([v for v in values if not (isinstance(v, float) and isnan(v))], dtype=float)
     if vals.size == 0:
