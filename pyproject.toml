@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "beladymem"
+version = "0.1.0a1"
+description = "Score agent-memory eviction policies by competitive ratio against the Belady MIN offline-optimal oracle (CPU-only, synthetic-validated)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "hinanohart" }]
+keywords = [
+  "llm",
+  "agent-memory",
+  "cache",
+  "belady",
+  "eviction",
+  "competitive-ratio",
+  "evaluation",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = ["numpy>=1.23"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[project.scripts]
+beladymem = "beladymem.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/hinanohart/beladymem"
+Issues = "https://github.com/hinanohart/beladymem/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/beladymem"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
