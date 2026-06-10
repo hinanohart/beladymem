@@ -16,35 +16,6 @@ competitive_ratio(policy) = useful_hits(policy) / useful_hits(Belady-MIN)
                           ∈ [0, 1]   (exact-key identity, count budget)
 ```
 
-## Architecture
-
-```mermaid
-flowchart TD
-    Trace[Trace JSONL Input] --> Adapter[Adapter jsonl or longmemeval]
-    Adapter --> MemoryTrace[MemoryTrace object]
-    MemoryTrace --> Oracle[Belady MIN Oracle offline optimal]
-    MemoryTrace --> Replay[Demand Paging Replay]
-    Policy[Eviction Policy LRU LFU FIFO or custom] --> Replay
-    Oracle --> OptHits[Oracle Useful Hits]
-    Replay --> PolHits[Policy Useful Hits]
-    OptHits --> Ratio[Competitive Ratio pol_hits div opt_hits]
-    PolHits --> Ratio
-    Ratio --> Report[ScoreReport summary or JSON]
-    Gates[Sensitivity Gates G1 to G9] --> MemoryTrace
-```
-
-## The model
-
-The sequence of useful retrievals is a cache **reference stream**; the memory budget `B` is a cache of size `B`; replay is classical **demand paging** (a forgotten-then-requested item is a miss). The **Belady MIN** oracle evicts the resident item whose next useful retrieval is farthest in the future. By Belady's 1966 theorem this is the offline optimum for demand paging, so the competitive ratio of any online policy lies in `[0, 1]` for exact-key identity under a count budget. The optimality is verified two ways in the test-suite: against an independent brute-force Belady, and against an exhaustive true optimum on small traces.
-
-`WRITE` events are recorded for adapter fidelity but the canonical oracle is defined on the useful-retrieval references. Under **semantic** (fuzzy) matching or a **byte** budget, Belady MIN is a documented *lower bound*, not the optimum (the byte-budget number is a heuristic floor, not a PFOO-certified bound); a policy can then exceed it, so those modes are labelled `lower_bound` and their ratio must not be read as a competitive ratio in `[0, 1]`.
-
-## Why a competitive ratio and not regret
-
-Recent work scores memory forgetting policies by **regret against the best fixed policy in hindsight** (e.g. *Forgetful but Faithful*, arXiv:2512.12856) or learns a Belady-style policy for the context window (*Neural Paging*, arXiv:2603.02228), or benchmarks downstream staleness (*Memora*, arXiv:2604.20006). beladymem measures a different thing: the ratio to the **unconstrained clairvoyant optimum**, not the gap to the best *fixed* policy.
-
-These are not the same yardstick, and they do not always agree. Gate **G9** constructs a trace family on which the Belady competitive ratio ranks `LRU` above `LFU` while best-fixed-policy regret ranks `LFU` above `LRU`, with non-overlapping bootstrap confidence intervals — a reproducible demonstration that the competitive ratio carries information that regret does not. The demonstration is a *constructed* family at specific budgets (a Simpson-style normalization effect, not a claim about every workload); it reproduces across seeds. Run it yourself with `beladymem gate`.
-
 ## Install
 
 ```bash
@@ -75,6 +46,39 @@ The instrument also exposes a prediction *envelope* as public functions in `bela
 3. **Replay** — both the oracle and the candidate policy run the same demand-paging replay independently; useful-hit counts are tallied.
 4. **Ratio** — `competitive_ratio = policy_hits / oracle_hits`, labelled `optimal` only for exact-key, count-budget mode.
 5. **Report** — `ScoreReport.summary()` prints a one-line human-readable result; `--json` gives machine-readable output for pipelines.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    Trace[Trace JSONL Input] --> Adapter[Adapter jsonl or longmemeval]
+    Adapter --> MemoryTrace[MemoryTrace object]
+    MemoryTrace --> Oracle[Belady MIN Oracle offline optimal]
+    MemoryTrace --> Replay[Demand Paging Replay]
+    Policy[Eviction Policy LRU LFU FIFO or custom] --> Replay
+    Oracle --> OptHits[Oracle Useful Hits]
+    Replay --> PolHits[Policy Useful Hits]
+    OptHits --> Ratio[Competitive Ratio pol_hits div opt_hits]
+    PolHits --> Ratio
+    Ratio --> Report[ScoreReport summary or JSON]
+    Gates[Sensitivity Gates G1 to G9] --> MemoryTrace
+```
+
+## The model
+
+The sequence of useful retrievals is a cache **reference stream**; the memory budget `B` is a cache of size `B`; replay is classical **demand paging** (a forgotten-then-requested item is a miss).
+
+The **Belady MIN** oracle evicts the resident item whose next useful retrieval is farthest in the future. By Belady's 1966 theorem this is the offline optimum for demand paging, so the competitive ratio of any online policy lies in `[0, 1]` for exact-key identity under a count budget. The optimality is verified two ways in the test-suite: against an independent brute-force Belady, and against an exhaustive true optimum on small traces.
+
+`WRITE` events are recorded for adapter fidelity but the canonical oracle is defined on the useful-retrieval references. Under **semantic** (fuzzy) matching or a **byte** budget, Belady MIN is a documented *lower bound*, not the optimum (the byte-budget number is a heuristic floor, not a PFOO-certified bound); a policy can then exceed it, so those modes are labelled `lower_bound` and their ratio must not be read as a competitive ratio in `[0, 1]`.
+
+## Why a competitive ratio and not regret
+
+Recent work scores memory forgetting policies by **regret against the best fixed policy in hindsight** (e.g. *Forgetful but Faithful*, arXiv:2512.12856) or learns a Belady-style policy for the context window (*Neural Paging*, arXiv:2603.02228), or benchmarks downstream staleness (*Memora*, arXiv:2604.20006). beladymem measures a different thing: the ratio to the **unconstrained clairvoyant optimum**, not the gap to the best *fixed* policy.
+
+These are not the same yardstick, and they do not always agree. Gate **G9** constructs a trace family on which the Belady competitive ratio ranks `LRU` above `LFU` while best-fixed-policy regret ranks `LFU` above `LRU`, with non-overlapping bootstrap confidence intervals — a reproducible demonstration that the competitive ratio carries information that regret does not.
+
+The demonstration is a *constructed* family at specific budgets (a Simpson-style normalization effect, not a claim about every workload); it reproduces across seeds. Run it yourself with `beladymem gate`.
 
 ## CLI
 
@@ -114,7 +118,11 @@ These three NON-CLAIMs are enforced verbatim in the test-suite and CI:
 - *Admission/write decisions are NOT scored; the oracle is eviction-only.*
 - *Under semantic (fuzzy) matching the oracle is a LOWER BOUND, not the optimum.*
 
-Further scope notes: results in this repository are from **synthetic** traces with planted ground truth. The LongMemEval adapter operates at **session/turn granularity** (LongMemEval's gold is session/turn level, not item level), so it scores sessions-as-items, not the fact-level contents of a real store. beladymem is an offline diagnostic — Belady MIN is non-causal and cannot be used as a runtime policy.
+Further scope notes:
+
+- Results in this repository are from **synthetic** traces with planted ground truth.
+- The LongMemEval adapter operates at **session/turn granularity** (LongMemEval's gold is session/turn level, not item level), so it scores sessions-as-items, not the fact-level contents of a real store.
+- beladymem is an offline diagnostic — Belady MIN is non-causal and cannot be used as a runtime policy.
 
 ## Related
 
