@@ -1,0 +1,51 @@
+direction: down
+explanation: |md
+  ### beladymem
+  **Score any agent-memory eviction policy by its competitive ratio against the Belady MIN offline-optimal oracle.**
+| {near: top-center}
+
+input_zone: "Inputs" {
+  style: {fill: "#f0fdf4"; stroke: "#10b981"; font-color: "#065f46"; bold: true; font-size: 16}
+  trace: "① Trace JSONL Input" {shape: cylinder; style: {fill: "#dcfce7"; font-color: "#065f46"}}
+  gates: "Sensitivity Gates\nG1–G9" {style: {fill: "#dcfce7"; font-color: "#065f46"}}
+}
+
+adapter: "② Adapter\njsonl or longmemeval" {style: {fill: "#0ea5e9"; font-color: "#ffffff"; stroke: "#0369a1"; bold: true; font-size: 18}}
+
+mem_trace: "③ MemoryTrace\nobject" {style: {fill: "#0ea5e9"; font-color: "#ffffff"; stroke: "#0369a1"; bold: true; font-size: 18}}
+
+eval_zone: "Evaluation Engines" {
+  style: {fill: "#fffbeb"; stroke: "#f59e0b"; font-color: "#92400e"; bold: true; font-size: 16}
+  oracle: "④ Belady MIN Oracle\noffline optimal" {style: {fill: "#fef3c7"; font-color: "#92400e"}}
+  replay: "④ Demand Paging\nReplay" {style: {fill: "#fef3c7"; font-color: "#92400e"}}
+  policy: "Eviction Policy\nLRU / LFU / FIFO / custom" {style: {fill: "#fef3c7"; font-color: "#92400e"}}
+}
+
+hits_zone: "Hit Counts" {
+  style: {fill: "#f0fdf4"; stroke: "#10b981"; font-color: "#065f46"; bold: true; font-size: 16}
+  opt_hits: "Oracle Useful Hits" {style: {fill: "#dcfce7"; font-color: "#065f46"}}
+  pol_hits: "Policy Useful Hits" {style: {fill: "#dcfce7"; font-color: "#065f46"}}
+}
+
+ratio: "⑤ Competitive Ratio\npol_hits / opt_hits" {style: {fill: "#0ea5e9"; font-color: "#ffffff"; stroke: "#0369a1"; bold: true; font-size: 18}}
+
+report: "⑥ ScoreReport\nsummary or JSON" {shape: cylinder; style: {fill: "#fdf2f8"; stroke: "#ec4899"; font-color: "#9d174e"; bold: true}}
+
+input_zone.trace -> adapter: "① ingest"
+input_zone.gates -> mem_trace: "② filter"
+adapter -> mem_trace: "② parse"
+mem_trace -> eval_zone.oracle: "③ feed"
+mem_trace -> eval_zone.replay: "③ feed"
+eval_zone.policy -> eval_zone.replay: "③ apply"
+eval_zone.oracle -> hits_zone.opt_hits: "④ count"
+eval_zone.replay -> hits_zone.pol_hits: "④ count"
+hits_zone.opt_hits -> ratio: "⑤ compare"
+hits_zone.pol_hits -> ratio: "⑤ compare"
+ratio -> report: "⑥ write"
+
+legend: "Legend" {
+  near: bottom-center
+  style: {fill: "#f8fafc"; stroke: "#cbd5e1"; font-size: 13}
+  e: "● entry"; c: "● core"; p: "● processing"; b: "● external"; d: "● output"
+  e.style.font-color: "#4338ca"; c.style.font-color: "#0369a1"; p.style.font-color: "#10b981"; b.style.font-color: "#f59e0b"; d.style.font-color: "#ec4899"
+}

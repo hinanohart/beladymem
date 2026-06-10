@@ -49,20 +49,9 @@ The instrument also exposes a prediction *envelope* as public functions in `bela
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    Trace[Trace JSONL Input] --> Adapter[Adapter jsonl or longmemeval]
-    Adapter --> MemoryTrace[MemoryTrace object]
-    MemoryTrace --> Oracle[Belady MIN Oracle offline optimal]
-    MemoryTrace --> Replay[Demand Paging Replay]
-    Policy[Eviction Policy LRU LFU FIFO or custom] --> Replay
-    Oracle --> OptHits[Oracle Useful Hits]
-    Replay --> PolHits[Policy Useful Hits]
-    OptHits --> Ratio[Competitive Ratio pol_hits div opt_hits]
-    PolHits --> Ratio
-    Ratio --> Report[ScoreReport summary or JSON]
-    Gates[Sensitivity Gates G1 to G9] --> MemoryTrace
-```
+<div align="center">
+  <img src="docs/architecture.png" alt="beladymem architecture" width="840">
+</div>
 
 ## The model
 
@@ -134,3 +123,4 @@ Part of the hinanohart memory toolkit, at different layers:
 ## License
 
 MIT © 2026 hinanohart
+
