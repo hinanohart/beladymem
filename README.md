@@ -4,61 +4,46 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10%E2%80%933.12-blue)
 
-Score an agent-memory **eviction / forgetting policy** by its *competitive
-ratio* against the **Belady MIN** offline-optimal oracle. CPU-only, dependency
-light (numpy), synthetic-validated.
+**Score any agent-memory eviction policy by its competitive ratio against the Belady MIN offline-optimal oracle.** CPU-only, dependency-light (numpy), synthetic-validated.
 
 > **Status: `0.1.0a1` (alpha).** Validated on synthetic ground truth only — see
 > [Validation](#validation) and [What beladymem does not claim](#what-beladymem-does-not-claim).
 
-beladymem is a **measurement instrument**, not a memory system. It takes a trace
-of *useful retrievals* from a long-term memory store — you supply the trace as
-JSON Lines (a LongMemEval adapter is included; you can write your own) — treats
-it as a classical cache reference stream at a fixed budget `B`, and reports — for
-each eviction policy — one falsifiable number: how close that policy comes to the
-clairvoyant optimum.
+beladymem is a **measurement instrument**, not a memory system. You supply a trace of useful retrievals from a long-term memory store as JSON Lines (a LongMemEval adapter is included; you can write your own). beladymem treats it as a classical cache reference stream at a fixed budget `B` and reports one falsifiable number per eviction policy: how close that policy comes to the clairvoyant optimum.
 
 ```
 competitive_ratio(policy) = useful_hits(policy) / useful_hits(Belady-MIN)
                           ∈ [0, 1]   (exact-key identity, count budget)
 ```
 
-## The model (why the ratio is in `[0, 1]`)
+## Architecture
 
-The sequence of useful retrievals is a cache **reference stream**; the memory
-budget `B` is a cache of size `B`; replay is classical **demand paging** (a
-forgotten-then-requested item is a miss). The **Belady MIN** oracle evicts the
-resident item whose next useful retrieval is farthest in the future. By Belady's
-1966 theorem this is the offline optimum for demand paging, so the competitive
-ratio of any online policy lies in `[0, 1]` for exact-key identity under a count
-budget. The optimality is verified two ways in the test-suite: against an
-independent brute-force Belady, and against an exhaustive true optimum on small
-traces.
+```mermaid
+flowchart TD
+    Trace[Trace JSONL Input] --> Adapter[Adapter jsonl or longmemeval]
+    Adapter --> MemoryTrace[MemoryTrace object]
+    MemoryTrace --> Oracle[Belady MIN Oracle offline optimal]
+    MemoryTrace --> Replay[Demand Paging Replay]
+    Policy[Eviction Policy LRU LFU FIFO or custom] --> Replay
+    Oracle --> OptHits[Oracle Useful Hits]
+    Replay --> PolHits[Policy Useful Hits]
+    OptHits --> Ratio[Competitive Ratio pol_hits div opt_hits]
+    PolHits --> Ratio
+    Ratio --> Report[ScoreReport summary or JSON]
+    Gates[Sensitivity Gates G1 to G9] --> MemoryTrace
+```
 
-`WRITE` events are recorded for adapter fidelity but the canonical oracle is
-defined on the useful-retrieval references. Under **semantic** (fuzzy) matching
-or a **byte** budget, Belady MIN is a documented *lower bound*, not the optimum
-(the byte-budget number is a heuristic floor, not a PFOO-certified bound); a
-policy can then exceed it, so those modes are labelled `lower_bound` and their
-ratio must not be read as a competitive ratio in `[0, 1]`.
+## The model
+
+The sequence of useful retrievals is a cache **reference stream**; the memory budget `B` is a cache of size `B`; replay is classical **demand paging** (a forgotten-then-requested item is a miss). The **Belady MIN** oracle evicts the resident item whose next useful retrieval is farthest in the future. By Belady's 1966 theorem this is the offline optimum for demand paging, so the competitive ratio of any online policy lies in `[0, 1]` for exact-key identity under a count budget. The optimality is verified two ways in the test-suite: against an independent brute-force Belady, and against an exhaustive true optimum on small traces.
+
+`WRITE` events are recorded for adapter fidelity but the canonical oracle is defined on the useful-retrieval references. Under **semantic** (fuzzy) matching or a **byte** budget, Belady MIN is a documented *lower bound*, not the optimum (the byte-budget number is a heuristic floor, not a PFOO-certified bound); a policy can then exceed it, so those modes are labelled `lower_bound` and their ratio must not be read as a competitive ratio in `[0, 1]`.
 
 ## Why a competitive ratio and not regret
 
-Recent work scores memory forgetting policies by **regret against the best fixed
-policy in hindsight** (e.g. *Forgetful but Faithful*, arXiv:2512.12856) or learns
-a Belady-style policy for the context window (*Neural Paging*, arXiv:2603.02228),
-or benchmarks downstream staleness (*Memora*, arXiv:2604.20006). beladymem
-measures a different thing: the ratio to the **unconstrained clairvoyant
-optimum**, not the gap to the best *fixed* policy.
+Recent work scores memory forgetting policies by **regret against the best fixed policy in hindsight** (e.g. *Forgetful but Faithful*, arXiv:2512.12856) or learns a Belady-style policy for the context window (*Neural Paging*, arXiv:2603.02228), or benchmarks downstream staleness (*Memora*, arXiv:2604.20006). beladymem measures a different thing: the ratio to the **unconstrained clairvoyant optimum**, not the gap to the best *fixed* policy.
 
-These are not the same yardstick, and they do not always agree. Gate **G9**
-constructs a trace family on which the Belady competitive ratio ranks `LRU`
-above `LFU` while best-fixed-policy regret ranks `LFU` above `LRU`, with
-non-overlapping bootstrap confidence intervals — a reproducible demonstration
-that the competitive ratio carries information that regret does not. The
-demonstration is a *constructed* family at specific budgets (a Simpson-style
-normalization effect, not a claim about every workload); it reproduces across
-seeds. Run it yourself with `beladymem gate`.
+These are not the same yardstick, and they do not always agree. Gate **G9** constructs a trace family on which the Belady competitive ratio ranks `LRU` above `LFU` while best-fixed-policy regret ranks `LFU` above `LRU`, with non-overlapping bootstrap confidence intervals — a reproducible demonstration that the competitive ratio carries information that regret does not. The demonstration is a *constructed* family at specific budgets (a Simpson-style normalization effect, not a claim about every workload); it reproduces across seeds. Run it yourself with `beladymem gate`.
 
 ## Install
 
@@ -79,17 +64,19 @@ print(report.summary())
 # policy=lru budget=5(count) competitive_ratio=0.73xx hits=.../... [optimal] premature_forgets=...
 ```
 
-Bring your own policy by implementing three hooks (`reset`, `on_use`,
-`evict_victim`) and pass the instance to `score`. An invalid victim is rejected
-fail-closed so the `[0, 1]` guarantee cannot be broken silently. Compare several
-at once with `beladymem.score.score_many`.
+Bring your own policy by implementing three hooks (`reset`, `on_use`, `evict_victim`) and pass the instance to `score`. An invalid victim is rejected fail-closed so the `[0, 1]` guarantee cannot be broken silently. Compare several at once with `beladymem.score.score_many`.
 
-The instrument also exposes a prediction *envelope* as public functions in
-`beladymem.metrics`: `consistency_ratio` (a predictor fed the true future, which
-reproduces Belady) and `robustness_ratio` (a predictor fed adversarial
-predictions) bound what any prediction-driven evictor can achieve on a trace.
+The instrument also exposes a prediction *envelope* as public functions in `beladymem.metrics`: `consistency_ratio` (a predictor fed the true future, which reproduces Belady) and `robustness_ratio` (a predictor fed adversarial predictions) bound what any prediction-driven evictor can achieve on a trace.
 
-### CLI
+## How it works
+
+1. **Load trace** — parse a JSONL file via the built-in `jsonl` adapter or the `longmemeval` adapter (which scores LongMemEval sessions-as-items, not fact-level contents).
+2. **Build oracle** — `BeladyPolicy` pre-computes each item's next-use indices so it can answer "which resident item is used farthest in the future?" in O(log n) per eviction.
+3. **Replay** — both the oracle and the candidate policy run the same demand-paging replay independently; useful-hit counts are tallied.
+4. **Ratio** — `competitive_ratio = policy_hits / oracle_hits`, labelled `optimal` only for exact-key, count-budget mode.
+5. **Report** — `ScoreReport.summary()` prints a one-line human-readable result; `--json` gives machine-readable output for pipelines.
+
+## CLI
 
 ```bash
 beladymem gate                                   # run sensitivity gates G1-G9
@@ -97,18 +84,13 @@ beladymem score trace.jsonl --budget 512 --policy lru,lfu,fifo
 beladymem score trace.jsonl --budget 512 --json
 ```
 
-### Trace format
+## Trace format
 
-A trace is JSON Lines: an optional header `{"determinism": "exact_key"}` then one
-event per line, e.g. `{"t": 0, "op": "use", "item_id": "fact:42", "useful": true}`.
-Adapters are provided for the native JSONL format and for LongMemEval-style
-oracle annotations (`beladymem.adapters`).
+A trace is JSON Lines: an optional header `{"determinism": "exact_key"}` then one event per line, e.g. `{"t": 0, "op": "use", "item_id": "fact:42", "useful": true}`. Adapters are provided for the native JSONL format and for LongMemEval-style oracle annotations (`beladymem.adapters`).
 
 ## Validation
 
-beladymem ships **pre-registered sensitivity gates** that run on synthetic
-ground truth and prove the instrument discriminates *before* it is pointed at any
-real data. `beladymem gate` runs all nine and exits non-zero on any failure:
+beladymem ships **pre-registered sensitivity gates** that run on synthetic ground truth and prove the instrument discriminates *before* it is pointed at any real data. `beladymem gate` runs all nine and exits non-zero on any failure:
 
 | gate | checks |
 |------|--------|
@@ -132,27 +114,14 @@ These three NON-CLAIMs are enforced verbatim in the test-suite and CI:
 - *Admission/write decisions are NOT scored; the oracle is eviction-only.*
 - *Under semantic (fuzzy) matching the oracle is a LOWER BOUND, not the optimum.*
 
-Further scope notes: results in this repository are from **synthetic** traces
-with planted ground truth. The LongMemEval adapter operates at
-**session/turn granularity** (LongMemEval's gold is session/turn level, not
-item level), so it scores sessions-as-items, not the fact-level contents of a
-real store. beladymem is an offline diagnostic — Belady MIN is non-causal and
-cannot be used as a runtime policy.
+Further scope notes: results in this repository are from **synthetic** traces with planted ground truth. The LongMemEval adapter operates at **session/turn granularity** (LongMemEval's gold is session/turn level, not item level), so it scores sessions-as-items, not the fact-level contents of a real store. beladymem is an offline diagnostic — Belady MIN is non-causal and cannot be used as a runtime policy.
 
 ## Related
 
 Part of the hinanohart memory toolkit, at different layers:
 
-- [parsimony](https://github.com/hinanohart/parsimony) — a deterministic
-  *write/evict-time forgetting policy* (admission / eviction / dedup). parsimony
-  *decides* what to forget and self-benchmarks its **coverage** competitive ratio
-  with its own self-contained Belady oracle. beladymem is the complementary
-  *instrument*: it *measures* any forgetting policy's **useful-retrieval**
-  competitive ratio against Belady-MIN, and you can point it at parsimony (or
-  LRU / LFU / FIFO / your own) to compare. Different objective (coverage vs
-  useful-retrieval), no shared code.
-- [chronospect](https://github.com/hinanohart/chronospect) — in-weight memory
-  timescale measurement.
+- [parsimony](https://github.com/hinanohart/parsimony) — a deterministic *write/evict-time forgetting policy* (admission / eviction / dedup). parsimony *decides* what to forget and self-benchmarks its **coverage** competitive ratio with its own self-contained Belady oracle. beladymem is the complementary *instrument*: it *measures* any forgetting policy's **useful-retrieval** competitive ratio against Belady-MIN, and you can point it at parsimony (or LRU / LFU / FIFO / your own) to compare. Different objective (coverage vs useful-retrieval), no shared code.
+- [chronospect](https://github.com/hinanohart/chronospect) — in-weight memory timescale measurement.
 
 ## License
 
